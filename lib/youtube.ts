@@ -1,10 +1,19 @@
 export function extractVideoId(input: string): string | null {
   try {
-    const url = new URL(input);
-    let id = url.searchParams.get("v");
-    if (url.hostname === "youtu.be" || url.hostname.endsWith(".youtu.be")) id = url.pathname.slice(1);
-    if (url.pathname.startsWith("/embed/") || url.pathname.startsWith("/shorts/")) id = url.pathname.split("/")[2];
-    return id && /^[\\w-]{11}$/.test(id) ? id : null;
+    const url = new URL(input.trim());
+    const host = url.hostname.toLowerCase().replace(/^www\./, "").replace(/^m\./, "");
+    let id: string | null = null;
+
+    if (host === "youtu.be") {
+      id = url.pathname.split("/").filter(Boolean)[0] || null;
+    } else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      if (url.pathname === "/watch") id = url.searchParams.get("v");
+      else if (url.pathname.startsWith("/embed/") || url.pathname.startsWith("/shorts/") || url.pathname.startsWith("/live/")) {
+        id = url.pathname.split("/").filter(Boolean)[1] || null;
+      }
+    }
+
+    return id && /^[\w-]{11}$/.test(id) ? id : null;
   } catch {
     return null;
   }
@@ -24,53 +33,27 @@ export async function getVideoMetadata(videoId: string) {
 }
 
 export async function getTranscript(videoId: string) {
-  // Use the maintained transcript-plus fork. The previous youtube-transcript
-  // package was a single retrieval path and often misreported server-side
-  // YouTube access failures as "transcript disabled".
   const { fetchTranscript } = await import("youtube-transcript-plus");
-
   let rows: Awaited<ReturnType<typeof fetchTranscript>>;
   try {
-    rows = await fetchTranscript(videoId, {
-      retries: 2,
-      retryDelay: 1200,
-      videoDetails: false
-    });
+    rows = await fetchTranscript(videoId, { retries: 2, retryDelay: 1200, videoDetails: false });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     const normalized = detail.toLowerCase();
-
     if (normalized.includes("too many") || normalized.includes("429") || normalized.includes("rate")) {
       throw new Error("YouTube is temporarily rate-limiting transcript requests from this server. Please try again later.");
     }
-
-    if (normalized.includes("disabled")) {
-      throw new Error("YouTube reports that captions are disabled or unavailable for this video.");
-    }
-
+    if (normalized.includes("disabled")) throw new Error("YouTube reports that captions are disabled or unavailable for this video.");
     if (normalized.includes("not available") || normalized.includes("caption")) {
       throw new Error("The transcript could not be retrieved. Captions may exist in YouTube, but this server could not access them.");
     }
-
     throw new Error(`YouTube transcript retrieval failed on the server: ${detail}`);
   }
-
-  if (!rows?.length) {
-    throw new Error("YouTube returned no transcript segments. The captions may not be accessible to this server.");
-  }
-
+  if (!rows?.length) throw new Error("YouTube returned no transcript segments. The captions may not be accessible to this server.");
   const segments = rows.map((row) => ({
     text: String(row.text || "").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
     offset: row.offset
   })).filter((row) => row.text.trim());
-
-  if (!segments.length) {
-    throw new Error("YouTube returned an empty transcript.");
-  }
-
-  return {
-    text: segments.map((row) => row.text).join(" "),
-    segments,
-    language: "YouTube captions"
-  };
+  if (!segments.length) throw new Error("YouTube returned an empty transcript.");
+  return { text: segments.map((row) => row.text).join(" "), segments, language: "YouTube captions" };
 }

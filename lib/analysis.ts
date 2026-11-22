@@ -34,10 +34,9 @@ export async function analyzeTranscript(input: TranscriptInput) {
   const apiKey = process.env.XAI_API_KEY || process.env.AI_API_KEY;
   if (!apiKey) return fallback(input);
 
-  // xAI's API is OpenAI-compatible for Chat Completions.
-  const baseUrl = (process.env.AI_BASE_URL || "https://api.x.ai/v1").replace(/\\/$/, "");
+  const baseUrl = (process.env.AI_BASE_URL || "https://api.x.ai/v1").replace(/\/$/, "");
   const model = process.env.AI_MODEL || "grok-4.7";
-  const prompt = `Analyze this YouTube transcript for a learner of natural spoken English. Be evidence-based: do not invent quotes, pronunciation observations, or facts absent from the transcript. Distinguish observable transcript features from uncertain audio features. Return JSON with keys summary (string), speakingStyle (string array), expressions (string array with phrase and meaning), grammar (string array with short examples taken from the transcript where possible), ideas (string array describing idea progression), practice (string array of practical speaking exercises). Video: ${input.title}. Channel: ${input.author}. Transcript (may be truncated):\\n${input.text.slice(0, 24000)}`;
+  const prompt = `Analyze this YouTube transcript for a learner of natural spoken English. Be evidence-based: do not invent quotes, pronunciation observations, or facts absent from the transcript. Distinguish observable transcript features from uncertain audio features. Return JSON with keys summary (string), speakingStyle (string array), expressions (string array with phrase and meaning), grammar (string array with short examples taken from the transcript where possible), ideas (string array describing idea progression), practice (string array of practical speaking exercises). Video: ${input.title}. Channel: ${input.author}. Transcript (may be truncated):\n${input.text.slice(0, 24000)}`;
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
