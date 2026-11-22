@@ -8,7 +8,7 @@ const fallback = (input: TranscriptInput) => {
   const found = common.filter((term) => text.toLowerCase().includes(term.toLowerCase()));
   const topWords = [...new Set(words.filter((w) => w.length > 5))].slice(0, 8);
   return {
-    summary: `This video, “${input.title}” by ${input.author}, contains approximately ${words.length.toLocaleString()} words across ${sentences.length} sentence-like sections. The transcript is available below. Add an AI provider key to generate a deeper summary and contextual language analysis.`,
+    summary: `This video, “${input.title}” by ${input.author}, contains approximately ${words.length.toLocaleString()} words across ${sentences.length} sentence-like sections. The transcript is available below. Add an xAI API key to generate a deeper summary and contextual language analysis.`,
     speakingStyle: [
       `The transcript contains about ${sentences.length} sentence-like sections; sentence length and punctuation can help reveal the speaker's pace and structure.`,
       "Review repeated transitions and examples to see how the speaker moves from one point to the next.",
@@ -31,17 +31,22 @@ const fallback = (input: TranscriptInput) => {
 };
 
 export async function analyzeTranscript(input: TranscriptInput) {
-  const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
+  const apiKey = process.env.XAI_API_KEY || process.env.AI_API_KEY;
   if (!apiKey) return fallback(input);
-  const baseUrl = (process.env.AI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
-  const model = process.env.AI_MODEL || "gpt-4o-mini";
-  const prompt = `Analyze this YouTube transcript for a learner of natural spoken English. Be evidence-based: do not invent quotes, pronunciation observations, or facts absent from the transcript. Distinguish observable transcript features from uncertain audio features. Return JSON with keys summary (string), speakingStyle (string array), expressions (string array with phrase and meaning), grammar (string array with short examples taken from the transcript where possible), ideas (string array describing idea progression), practice (string array of practical speaking exercises). Video: ${input.title}. Channel: ${input.author}. Transcript (may be truncated):\n${input.text.slice(0, 24000)}`;
+
+  // xAI's API is OpenAI-compatible for Chat Completions.
+  const baseUrl = (process.env.AI_BASE_URL || "https://api.x.ai/v1").replace(/\\/$/, "");
+  const model = process.env.AI_MODEL || "grok-4.7";
+  const prompt = `Analyze this YouTube transcript for a learner of natural spoken English. Be evidence-based: do not invent quotes, pronunciation observations, or facts absent from the transcript. Distinguish observable transcript features from uncertain audio features. Return JSON with keys summary (string), speakingStyle (string array), expressions (string array with phrase and meaning), grammar (string array with short examples taken from the transcript where possible), ideas (string array describing idea progression), practice (string array of practical speaking exercises). Video: ${input.title}. Channel: ${input.author}. Transcript (may be truncated):\\n${input.text.slice(0, 24000)}`;
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model, temperature: 0.35, response_format: { type: "json_object" }, messages: [{ role: "system", content: "You are a careful transcript analyst and spoken-English coach. Return valid JSON only." }, { role: "user", content: prompt }] })
   });
-  if (!response.ok) throw new Error("AI analysis provider returned an error. Check your AI_API_KEY, model and provider settings.");
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`xAI provider request failed (${response.status}). Check your xAI API key, model access and billing. ${detail.slice(0, 300)}`);
+  }
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
   if (!content) return fallback(input);
