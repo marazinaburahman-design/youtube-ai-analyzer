@@ -1,6 +1,6 @@
 {
   "name": "youtube-ai-analyzer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,7 +14,7 @@
     "next": "^15.5.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "youtube-transcript": "^1.2.1",
+    "youtube-transcript-plus": "^2.0.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
